@@ -9,13 +9,17 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class Omni<T>
 {
@@ -30,17 +34,18 @@ public class Omni<T>
     {
         this.kryo = kryo;
         dir = new File( path );
-        root = instanceCreator.get();
         snapshot = new File( dir, "snapshot.zip" );
         if( snapshot.exists() )
         {
-            try (Input input = new Input(
-                new BufferedInputStream( new ZipInputStream( new FileInputStream( snapshot ) ) ) ))
+
+            try (ZipInputStream in = new ZipInputStream( new FileInputStream( snapshot ) );
+                Input input = new Input( new BufferedInputStream( in ) ))
             {
+                in.getNextEntry();
                 lastCommandId = input.readVarLong( true );
-                T serialized = (T)kryo.readObject( input, SerializedOperation.class );
+                root = (T)kryo.readClassAndObject( input );
             }
-            catch( FileNotFoundException e )
+            catch( Exception e )
             {
                 throw new IllegalStateException( e );
             }
@@ -50,27 +55,29 @@ public class Omni<T>
             root = instanceCreator.get();
         }
 
-        writeLocked( () ->
+        writeLocked( this::loadOperations );
+    }
+
+    private Object loadOperations()
+    {
+        Stream.of( dir.listFiles() ).filter( f -> f.getName().matches( "[0-9]+" ) )
+            .filter( f -> Long.parseLong( f.getName() ) > lastCommandId )
+            .sorted( Comparator.comparing( f -> Long.parseLong( f.getName() ) ) ).forEach( f ->
         {
-            Stream.of( dir.listFiles() ).filter( f -> f.getName().matches( "[0-9]+" ) )
-                .filter( f -> Long.parseLong( f.getName() ) > lastCommandId )
-                .sorted( Comparator.comparing( f -> Long.parseLong( f.getName() ) ) ).forEach( f ->
+            try (Input input = new Input( new BufferedInputStream( new FileInputStream( f ) ) ))
             {
-                try (Input input = new Input( new BufferedInputStream( new FileInputStream( f ) ) ))
-                {
-                    lastCommandId = Long.parseLong( f.getName() );
-                    SerializedOperation<T, ?> operation = kryo.readObject( input, SerializedOperation.class );
+                lastCommandId = Long.parseLong( f.getName() );
+                SerializedOperation<T, ?> operation = kryo.readObject( input, SerializedOperation.class );
 
-                    operation.getOperation().perform( root, operation.getClock() );
-                }
-                catch( FileNotFoundException e )
-                {
-                    throw new IllegalStateException( e );
-                }
-            } );
-
-            return null;
+                operation.getOperation().perform( root, operation.getClock() );
+            }
+            catch( FileNotFoundException e )
+            {
+                throw new IllegalStateException( e );
+            }
         } );
+
+        return null;
     }
 
     public <E> Try<E> query( Operation<T, E> query )
@@ -85,25 +92,65 @@ public class Omni<T>
 
     public <E> Try<E> executeAndQuery( Operation<T, E> operation )
     {
-        return writeLocked( () ->
-        {
-            Instant now = Instant.now();
-            lastCommandId++;
-            File opFile = new File( dir, Long.toString( lastCommandId ) );
+        return writeLocked( () -> lockedExecuteAndQuery( operation ) );
+    }
 
-            try (FileOutputStream out = new FileOutputStream( opFile );
-                Output output = new Output( new BufferedOutputStream( out ) ))
-            {
-                kryo.writeObject( output, new SerializedOperation<>( now, operation ) );
-                output.flush();
-                out.getFD().sync();
-                return operation.perform( root, now );
-            }
-            catch( Exception e )
-            {
-                return Try.failure( e );
-            }
-        } );
+    private <E> Try<E> lockedExecuteAndQuery( Operation<T, E> operation )
+    {
+        Instant now = Instant.now();
+        lastCommandId++;
+        File opFile = new File( dir, Long.toString( lastCommandId ) );
+
+        try (FileOutputStream out = new FileOutputStream( opFile );
+            Output output = new Output( new BufferedOutputStream( out ) ))
+        {
+            kryo.writeObject( output, new SerializedOperation<>( now, operation ) );
+            output.flush();
+            out.getFD().sync();
+            return operation.perform( root, now );
+        }
+        catch( Exception e )
+        {
+            return Try.failure( e );
+        }
+    }
+
+    public void takeSnapshot()
+    {
+        writeLocked( this::lockedTakeSnapshot );
+    }
+
+    private Try<Object> lockedTakeSnapshot()
+    {
+        File tmpSnapshot = new File( dir, "tmpSnapshot" );
+
+        try (FileOutputStream fos = new FileOutputStream( tmpSnapshot );
+            ZipOutputStream zip = new ZipOutputStream( fos );
+            Output output = new Output( zip ))
+        {
+            zip.putNextEntry( new ZipEntry( "file" ) );
+            output.writeVarLong( lastCommandId, true );
+            kryo.writeClassAndObject( output, root );
+
+            output.flush();
+            fos.getFD().sync();
+        }
+        catch( Exception e )
+        {
+            return Try.failure( e );
+        }
+
+        snapshot.delete();
+        try
+        {
+            Files.move(tmpSnapshot.toPath(), snapshot.toPath());
+        }
+        catch( IOException e )
+        {
+            return Try.failure( e );
+        }
+
+        return Try.success( null );
     }
 
     private <E> E readLocked( Supplier<E> runnable )

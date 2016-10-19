@@ -1,6 +1,7 @@
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.lang.invoke.SerializedLambda;
 import java.util.function.Supplier;
@@ -13,7 +14,9 @@ public class OmniBuilder<T>
 
     private OmniBuilder( Supplier<T> instanceCreator )
     {
-        kryo.register( SerializedLambda.class, new ClosureSerializer() );
+        kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(
+                new StdInstantiatorStrategy()));
+        kryo.register( SerializedLambda.class );
         kryo.register( ClosureSerializer.Closure.class, new ClosureSerializer() );
         this.instanceCreator = instanceCreator;
     }
