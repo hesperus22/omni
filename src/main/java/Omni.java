@@ -30,7 +30,7 @@ public class Omni<T>
     private final File snapshot;
     private long lastCommandId;
 
-    public Omni( Kryo kryo, String path, Supplier<T> instanceCreator )
+    Omni( Kryo kryo, String path, Supplier<T> instanceCreator )
     {
         this.kryo = kryo;
         dir = new File( path );
