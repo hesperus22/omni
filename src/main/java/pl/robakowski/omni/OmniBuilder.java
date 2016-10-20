@@ -1,3 +1,5 @@
+package pl.robakowski.omni;
+
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
@@ -14,8 +16,7 @@ public class OmniBuilder<T>
 
     private OmniBuilder( Supplier<T> instanceCreator )
     {
-        kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(
-                new StdInstantiatorStrategy()));
+        kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy( new StdInstantiatorStrategy()));
         kryo.register( SerializedLambda.class );
         kryo.register( ClosureSerializer.Closure.class, new ClosureSerializer() );
         this.instanceCreator = instanceCreator;

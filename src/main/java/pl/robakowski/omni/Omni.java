@@ -1,6 +1,9 @@
+package pl.robakowski.omni;
+
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import static java.util.Comparator.comparing;
 import javaslang.control.Try;
 
 import java.io.BufferedInputStream;
@@ -12,7 +15,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
@@ -26,63 +28,23 @@ public class Omni<T>
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Kryo kryo;
     private final File dir;
-    private T root;
     private final File snapshot;
-    private long lastCommandId;
+    private T root;
+    private volatile long lastCommandId;
 
     Omni( Kryo kryo, String path, Supplier<T> instanceCreator )
     {
         this.kryo = kryo;
         dir = new File( path );
         snapshot = new File( dir, "snapshot.zip" );
-        if( snapshot.exists() )
-        {
+        root = snapshot.exists() ? loadSnapshot() : instanceCreator.get();
 
-            try (ZipInputStream in = new ZipInputStream( new FileInputStream( snapshot ) );
-                Input input = new Input( new BufferedInputStream( in ) ))
-            {
-                in.getNextEntry();
-                lastCommandId = input.readVarLong( true );
-                root = (T)kryo.readClassAndObject( input );
-            }
-            catch( Exception e )
-            {
-                throw new IllegalStateException( e );
-            }
-        }
-        else
-        {
-            root = instanceCreator.get();
-        }
-
-        writeLocked( this::loadOperations );
+        loadOperations();
     }
 
-    private Object loadOperations()
+    public <E> Try<E> query( Query<T, E> query )
     {
-        Stream.of( dir.listFiles() ).filter( f -> f.getName().matches( "[0-9]+" ) )
-            .filter( f -> Long.parseLong( f.getName() ) > lastCommandId )
-            .sorted( Comparator.comparing( f -> Long.parseLong( f.getName() ) ) ).forEach( f ->
-        {
-            try (Input input = new Input( new BufferedInputStream( new FileInputStream( f ) ) ))
-            {
-                lastCommandId = Long.parseLong( f.getName() );
-                SerializedOperation<T, ?> operation = kryo.readObject( input, SerializedOperation.class );
-
-                operation.getOperation().perform( root, operation.getClock() );
-            }
-            catch( FileNotFoundException e )
-            {
-                throw new IllegalStateException( e );
-            }
-        } );
-
-        return null;
-    }
-
-    public <E> Try<E> query( Operation<T, E> query )
-    {
-        return readLocked( () -> query.perform( root, Instant.now() ) );
+        return readLocked( () -> query.perform( root ) );
     }
 
     public Try<Void> execute( VoidOperation<T> operation )
@@ -93,6 +55,57 @@ public class Omni<T>
     public <E> Try<E> executeAndQuery( Operation<T, E> operation )
     {
         return writeLocked( () -> lockedExecuteAndQuery( operation ) );
+    }
+
+    private T loadSnapshot()
+    {
+        try (ZipInputStream in = new ZipInputStream( new FileInputStream( snapshot ) );
+            Input input = new Input( new BufferedInputStream( in ) ))
+        {
+            in.getNextEntry();
+            lastCommandId = input.readVarLong( true );
+            return (T)this.kryo.readClassAndObject( input );
+        }
+        catch( Exception e )
+        {
+            throw new IllegalStateException( e );
+        }
+    }
+
+    private void loadOperations()
+    {
+        Stream.of( dir.listFiles() ).filter( this::isOperation ).filter( this::isAfterSnapshot )
+            .sorted( comparing( this::getId ) ).forEach( this::loadOperation );
+    }
+
+    private void loadOperation( File f )
+    {
+        try (Input input = new Input( new BufferedInputStream( new FileInputStream( f ) ) ))
+        {
+            lastCommandId = getId( f );
+            SerializedOperation<T, ?> operation = kryo.readObject( input, SerializedOperation.class );
+
+            operation.getOperation().perform( root, operation.getClock() );
+        }
+        catch( FileNotFoundException e )
+        {
+            throw new IllegalStateException( e );
+        }
+    }
+
+    private long getId( File file )
+    {
+        return Long.parseLong( file.getName() );
+    }
+
+    private boolean isAfterSnapshot( File file )
+    {
+        return getId( file ) > lastCommandId;
+    }
+
+    private boolean isOperation( File file )
+    {
+        return file.getName().matches( "[0-9]+" );
     }
 
     private <E> Try<E> lockedExecuteAndQuery( Operation<T, E> operation )
@@ -143,7 +156,7 @@ public class Omni<T>
         snapshot.delete();
         try
         {
-            Files.move(tmpSnapshot.toPath(), snapshot.toPath());
+            Files.move( tmpSnapshot.toPath(), snapshot.toPath() );
         }
         catch( IOException e )
         {
@@ -179,4 +192,3 @@ public class Omni<T>
         }
     }
 }
-

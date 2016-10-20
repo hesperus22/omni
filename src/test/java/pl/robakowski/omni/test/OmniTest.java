@@ -1,8 +1,12 @@
+package pl.robakowski.omni.test;
+
 import javaslang.control.Try;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import pl.robakowski.omni.Omni;
+import pl.robakowski.omni.OmniBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,7 +30,7 @@ public class OmniTest
 
         Omni<Person> omni1 = builder.build();
 
-        Try<String> query = omni1.query( ( root, now ) -> Try.success( root.getName() ) );
+        Try<String> query = omni1.query( root -> Try.success( root.getName() ) );
         Assert.assertTrue( query.isSuccess() );
         Assert.assertNull( query.get() );
 
@@ -46,7 +50,7 @@ public class OmniTest
         } );
 
         Omni<Person> omni1 = builder.build();
-        Try<String> query = omni1.query( ( root, now ) -> Try.success( root.getName() ) );
+        Try<String> query = omni1.query( root -> Try.success( root.getName() ) );
         Assert.assertTrue( query.isSuccess() );
         Assert.assertEquals( "person", query.get() );
     }
@@ -68,7 +72,7 @@ public class OmniTest
         Thread.sleep( 2000 );
 
         Omni<Person> omni1 = builder.build();
-        Try<Instant> query = omni1.query( ( root, now ) -> Try.success( root.getCreatedAt() ) );
+        Try<Instant> query = omni1.query( root -> Try.success( root.getCreatedAt() ) );
         Assert.assertTrue( query.isSuccess() );
         Assert.assertEquals( start.truncatedTo( ChronoUnit.SECONDS ), query.get().truncatedTo( ChronoUnit.SECONDS ) );
     }
@@ -92,7 +96,7 @@ public class OmniTest
         Assert.assertTrue( new File(folder, "snapshot.zip").exists() );
 
         omni = builder.build();
-        Try<String> query = omni.query( ( root, now ) -> Try.success( root.getName() ));
+        Try<String> query = omni.query( root -> Try.success( root.getName() ));
 
         Assert.assertEquals( "personpersonperson", query.get() );
     }
@@ -118,7 +122,7 @@ public class OmniTest
         Stream.of( folder.listFiles()).filter( f->f.getName().contains( "1" )|f.getName().contains( "2" ) ).forEach( File::delete );
 
         omni = builder.build();
-        Try<String> query = omni.query( ( root, now ) -> Try.success( root.getName() ));
+        Try<String> query = omni.query( root -> Try.success( root.getName() ));
 
         Assert.assertEquals( "personpersonperson", query.get() );
     }

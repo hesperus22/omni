@@ -1,3 +1,5 @@
+package pl.robakowski.omni.test;
+
 import java.time.Instant;
 
 /**

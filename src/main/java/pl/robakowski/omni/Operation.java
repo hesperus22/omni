@@ -1,3 +1,5 @@
+package pl.robakowski.omni;
+
 import javaslang.control.Try;
 
 import java.io.Serializable;
