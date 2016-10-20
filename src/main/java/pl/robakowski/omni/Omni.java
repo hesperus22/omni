@@ -29,8 +29,9 @@ public class Omni<T>
     private final Kryo kryo;
     private final File dir;
     private final File snapshot;
+    private File ops;
     private T root;
-    private volatile long lastCommandId;
+    private volatile long lastCommandId = 0;
 
     Omni( Kryo kryo, String path, Supplier<T> instanceCreator )
     {
@@ -38,6 +39,8 @@ public class Omni<T>
         dir = new File( path );
         snapshot = new File( dir, "snapshot.zip" );
         root = snapshot.exists() ? loadSnapshot() : instanceCreator.get();
+
+        ops = new File( dir, String.valueOf( lastCommandId ) );
 
         loadOperations();
     }
