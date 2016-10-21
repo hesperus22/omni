@@ -11,7 +11,6 @@ import java.util.concurrent.ExecutionException;
 
 public class OmniFast
 {
-
     @State( Scope.Benchmark )
     public static class TestState extends OmniState
     {

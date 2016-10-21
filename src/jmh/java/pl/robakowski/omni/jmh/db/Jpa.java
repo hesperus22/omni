@@ -23,7 +23,9 @@ public class Jpa
             try
             {
                 entityManagerFactory = Persistence.createEntityManagerFactory( "persistence" );
-            }catch( Exception e ){
+            }
+            catch( Exception e )
+            {
                 e.printStackTrace();
             }
         }
@@ -43,7 +45,7 @@ public class Jpa
         public synchronized void tearDown()
         {
             em.close();
-            if(entityManagerFactory!=null)
+            if( entityManagerFactory != null && entityManagerFactory.isOpen() )
             {
                 entityManagerFactory.close();
                 entityManagerFactory = null;

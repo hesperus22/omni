@@ -37,8 +37,8 @@ dependencies {
 jmh {
     include = ''
     fork = 0
-    iterations = 15
-    timeOnIteration = '2s'
+    iterations = 6
+    timeOnIteration = '10s'
     warmup = '1s'
     warmupIterations = 3
     warmupForks = 0

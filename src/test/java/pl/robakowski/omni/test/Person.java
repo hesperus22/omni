@@ -9,6 +9,7 @@ public class Person
 {
     private String name;
     private Instant createdAt;
+    private int age;
 
     public String getName()
     {
@@ -28,5 +29,15 @@ public class Person
     public void setCreatedAt( Instant createdAt )
     {
         this.createdAt = createdAt;
+    }
+
+    public int getAge()
+    {
+        return age;
+    }
+
+    public void setAge( int age )
+    {
+        this.age = age;
     }
 }
