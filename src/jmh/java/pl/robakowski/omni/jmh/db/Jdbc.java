@@ -1,28 +1,19 @@
-package pl.robakowski.omni.jmh;
+package pl.robakowski.omni.jmh.db;
 
 import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Threads;
-import org.openjdk.jmh.annotations.Warmup;
 
 import java.sql.Connection;
-import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.ExecutionException;
 
-@Fork( 0 )
-@Warmup( time = 2, iterations = 5 )
-@Measurement( time = 5, iterations = 3 )
-@Threads( 4 )
-public class H2PT
+public class Jdbc
 {
     @State( Scope.Thread )
     public static class TestState
@@ -34,7 +25,7 @@ public class H2PT
         public void setup() throws ClassNotFoundException, SQLException
         {
             Class.forName( "org.h2.Driver" );
-            conn = DriverManager.getConnection( "jdbc:h2:./build/test" );
+            conn = DriverManager.getConnection( "jdbc:h2:./build/jdbc" );
             Statement statement = conn.createStatement();
 
             try
@@ -57,8 +48,8 @@ public class H2PT
         }
     }
 
-    //@Benchmark
-    public void testMethod( TestState s ) throws ExecutionException, InterruptedException, SQLException
+    @Benchmark
+    public void test( TestState s ) throws ExecutionException, InterruptedException, SQLException
     {
         s.stmt.executeUpdate();
     }

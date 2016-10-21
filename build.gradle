@@ -28,10 +28,19 @@ dependencies {
     compile 'com.esotericsoftware:kryo:4.0.0'
 
     jmh 'com.h2database:h2:1.4.192'
+    jmh 'org.hibernate:hibernate-entitymanager:5.2.3.Final'
+
 
     testCompile 'junit:junit:4.12'
 }
 
 jmh {
     include = ''
+    fork = 0
+    iterations = 15
+    timeOnIteration = '2s'
+    warmup = '1s'
+    warmupIterations = 3
+    warmupForks = 0
+    threads = 4
 }

@@ -1,4 +1,4 @@
-package pl.robakowski.omni.jmh;
+package pl.robakowski.omni.jmh.omni.data;
 
 /**
  * Created by probakowski on 2016-10-21.

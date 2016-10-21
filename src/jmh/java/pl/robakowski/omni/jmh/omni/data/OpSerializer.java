@@ -1,4 +1,4 @@
-package pl.robakowski.omni.jmh;
+package pl.robakowski.omni.jmh.omni.data;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;

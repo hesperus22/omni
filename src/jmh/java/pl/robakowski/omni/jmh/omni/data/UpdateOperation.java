@@ -1,10 +1,9 @@
-package pl.robakowski.omni.jmh;
+package pl.robakowski.omni.jmh.omni.data;
 
 import pl.robakowski.omni.Operation;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Created by probakowski on 2016-10-21.
