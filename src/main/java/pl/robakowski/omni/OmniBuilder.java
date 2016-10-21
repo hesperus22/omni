@@ -2,10 +2,13 @@ package pl.robakowski.omni;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.lang.invoke.SerializedLambda;
+import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -20,7 +23,6 @@ public class OmniBuilder<T>
         kryo.setInstantiatorStrategy( new Kryo.DefaultInstantiatorStrategy( new StdInstantiatorStrategy() ) );
         kryo.register( SerializedLambda.class );
         kryo.register( ClosureSerializer.Closure.class, new ClosureSerializer() );
-        kryo.register( SerializedOperation.class, new SerializedOperationSerializer() );
         this.instanceCreator = instanceCreator;
     }
 

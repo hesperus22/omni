@@ -4,10 +4,13 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import static java.util.Comparator.comparing;
-import javaslang.control.Try;
+
+import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -15,6 +18,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
@@ -26,10 +35,20 @@ import java.util.zip.ZipOutputStream;
 public class Omni<T>
 {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final BlockingQueue<SerializedOperation<T, ?>> queue = new ArrayBlockingQueue<>( 10 );
     private final Kryo kryo;
     private final File dir;
     private final File snapshot;
-    private File ops;
+    private FileOutputStream outputStream;
+    private Output output;
+    private ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor( r ->
+    {
+        Thread t = new Thread( r );
+        t.setDaemon( true );
+        t.setName( "omni-timer" );
+        return t;
+    } );
+
     private T root;
     private volatile long lastCommandId = 0;
 
@@ -39,25 +58,78 @@ public class Omni<T>
         dir = new File( path );
         snapshot = new File( dir, "snapshot.zip" );
         root = snapshot.exists() ? loadSnapshot() : instanceCreator.get();
-
-        ops = new File( dir, String.valueOf( lastCommandId ) );
+        timer.scheduleAtFixedRate( this::sync, 0, 1, TimeUnit.SECONDS );
 
         loadOperations();
+        startOutput();
     }
 
-    public <E> Try<E> query( Query<T, E> query )
+    private void sync()
     {
-        return readLocked( () -> query.perform( root ) );
+        try
+        {
+            outputStream.getFD().sync();
+        }
+        catch( IOException e )
+        {
+            e.printStackTrace();
+        }
     }
 
-    public Try<Void> execute( VoidOperation<T> operation )
+    public <E> CompletableFuture<E> query( Query<T, E> query )
+    {
+        lock.readLock().lock();
+        try
+        {
+            return CompletableFuture.completedFuture( query.perform( root ) );
+        }
+        catch( Exception e )
+        {
+            CompletableFuture<E> completableFuture = new CompletableFuture<>();
+            completableFuture.completeExceptionally( e );
+            return completableFuture;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    public CompletableFuture<Void> execute( VoidOperation<T> operation )
     {
         return executeAndQuery( operation );
     }
 
-    public <E> Try<E> executeAndQuery( Operation<T, E> operation )
+    public <E> CompletableFuture<E> executeAndQuery( Operation<T, E> operation )
     {
-        return writeLocked( () -> lockedExecuteAndQuery( operation ) );
+        CompletableFuture<E> ret = new CompletableFuture<>();
+        writeToFile( operation, ret );
+        writeLocked( this::lockedExecuteAndQuery );
+        return ret;
+    }
+
+    private void startOutput()
+    {
+        try
+        {
+            outputStream = new FileOutputStream( new File( dir, String.valueOf( lastCommandId ) ) );
+            output = new Output( outputStream );
+        }
+        catch( FileNotFoundException e )
+        {
+            throw new IllegalStateException( e );
+        }
+    }
+
+    private synchronized <E> void writeToFile( Operation<T, E> operation, CompletableFuture<E> ret )
+    {
+        Instant now = Instant.now();
+
+        kryo.writeObject( output, now );
+        kryo.writeClassAndObject( output, operation );
+        output.flush();
+
+        queue.add( new SerializedOperation<>( operation, now, ret ) );
     }
 
     private T loadSnapshot()
@@ -67,7 +139,7 @@ public class Omni<T>
         {
             in.getNextEntry();
             lastCommandId = input.readVarLong( true );
-            return (T)this.kryo.readClassAndObject( input );
+            return (T)kryo.readClassAndObject( input );
         }
         catch( Exception e )
         {
@@ -77,18 +149,29 @@ public class Omni<T>
 
     private void loadOperations()
     {
-        Stream.of( dir.listFiles() ).filter( this::isOperation ).filter( this::isAfterSnapshot )
-            .sorted( comparing( this::getId ) ).forEach( this::loadOperation );
+        Stream.of( Optional.ofNullable( dir.listFiles() ).orElse( new File[ 0 ] ) )
+            .filter( this::isOperation ).filter( this::isAfterSnapshot ).sorted( comparing( this::getId ) )
+            .forEach( this::loadOperations );
     }
 
-    private void loadOperation( File f )
+    private void loadOperations( File f )
     {
         try (Input input = new Input( new BufferedInputStream( new FileInputStream( f ) ) ))
         {
             lastCommandId = getId( f );
-            SerializedOperation<T, ?> operation = kryo.readObject( input, SerializedOperation.class );
+            while( !input.eof() )
+            {
+                Instant clock = kryo.readObject( input, Instant.class );
+                Operation<T, ?> operation = (Operation<T, ?>)kryo.readClassAndObject( input );
 
-            operation.getOperation().perform( root, operation.getClock() );
+                try
+                {
+                    operation.perform( root, clock );
+                }
+                catch( Exception e )
+                {
+                }
+            }
         }
         catch( FileNotFoundException e )
         {
@@ -103,7 +186,7 @@ public class Omni<T>
 
     private boolean isAfterSnapshot( File file )
     {
-        return getId( file ) > lastCommandId;
+        return getId( file ) >= lastCommandId;
     }
 
     private boolean isOperation( File file )
@@ -111,23 +194,16 @@ public class Omni<T>
         return file.getName().matches( "[0-9]+" );
     }
 
-    private <E> Try<E> lockedExecuteAndQuery( Operation<T, E> operation )
+    private <E> void lockedExecuteAndQuery()
     {
-        Instant now = Instant.now();
-        lastCommandId++;
-        File opFile = new File( dir, Long.toString( lastCommandId ) );
-
-        try (FileOutputStream out = new FileOutputStream( opFile );
-            Output output = new Output( new BufferedOutputStream( out ) ))
+        SerializedOperation<T, E> poll = (SerializedOperation<T, E>)queue.poll();
+        try
         {
-            kryo.writeObject( output, new SerializedOperation<>( now, operation ) );
-            output.flush();
-            out.getFD().sync();
-            return operation.perform( root, now );
+            poll.getFuture().complete( poll.getOperation().perform( root, poll.getClock() ) );
         }
         catch( Exception e )
         {
-            return Try.failure( e );
+            poll.getFuture().completeExceptionally( e );
         }
     }
 
@@ -136,7 +212,7 @@ public class Omni<T>
         writeLocked( this::lockedTakeSnapshot );
     }
 
-    private Try<Object> lockedTakeSnapshot()
+    private void lockedTakeSnapshot()
     {
         File tmpSnapshot = new File( dir, "tmpSnapshot" );
 
@@ -149,45 +225,36 @@ public class Omni<T>
             kryo.writeClassAndObject( output, root );
 
             output.flush();
-            fos.getFD().sync();
         }
         catch( Exception e )
         {
-            return Try.failure( e );
+            throw new IllegalStateException( e );
         }
 
-        snapshot.delete();
         try
         {
+            snapshot.delete();
+
             Files.move( tmpSnapshot.toPath(), snapshot.toPath() );
+
+            lastCommandId++;
+            outputStream.close();
+            startOutput();
         }
         catch( IOException e )
+
         {
-            return Try.failure( e );
+            throw new IllegalStateException( e );
         }
 
-        return Try.success( null );
     }
 
-    private <E> E readLocked( Supplier<E> runnable )
-    {
-        lock.readLock().lock();
-        try
-        {
-            return runnable.get();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
-    private <E> E writeLocked( Supplier<E> runnable )
+    private void writeLocked( Runnable runnable )
     {
         lock.writeLock().lock();
         try
         {
-            return runnable.get();
+            runnable.run();
         }
         finally
         {

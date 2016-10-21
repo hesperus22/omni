@@ -1,6 +1,6 @@
 package pl.robakowski.omni;
 
-import javaslang.control.Try;
+import java.util.concurrent.CompletableFuture;
 
 import java.time.Instant;
 
@@ -12,9 +12,9 @@ public interface VoidOperation<E> extends Operation<E, Void>
     void run( E root, Instant now );
 
     @Override
-    default Try<Void> perform( E root, Instant now )
+    default Void perform( E root, Instant now )
     {
         run( root, now );
-        return Try.success( null );
+        return null;
     }
 }

@@ -1,6 +1,6 @@
 package pl.robakowski.omni;
 
-import javaslang.control.Try;
+import java.util.concurrent.CompletableFuture;
 
 import java.time.Instant;
 
@@ -9,5 +9,5 @@ import java.time.Instant;
  */
 public interface Query<T, E>
 {
-    Try<E> perform( T root );
+    E perform( T root );
 }

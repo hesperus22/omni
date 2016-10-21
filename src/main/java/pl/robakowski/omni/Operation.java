@@ -1,6 +1,6 @@
 package pl.robakowski.omni;
 
-import javaslang.control.Try;
+import java.util.concurrent.CompletableFuture;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -11,5 +11,5 @@ import java.time.Instant;
 @FunctionalInterface
 public interface Operation<T, E> extends Serializable
 {
-    Try<E> perform( T root, Instant now );
+    E perform( T root, Instant now );
 }

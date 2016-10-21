@@ -25,28 +25,27 @@ import java.util.concurrent.ExecutionException;
 @Warmup( time = 2, iterations = 5 )
 @Measurement( time = 5, iterations = 3 )
 @Threads( 4 )
-public class OmniPT
+public class Omni2PT
 {
-
     @State( Scope.Benchmark )
     public static class TestState extends OmniState
     {
         @Override
         protected String getPath()
         {
-            return "build/o1";
+            return "build/o2";
         }
 
         @Override
         protected void configureKryo( Kryo kryo )
         {
-            kryo.register( UpdateOperation.class );
+            kryo.register( SlowUpdateOperation.class );
         }
     }
 
     @Benchmark
     public int testMethod( TestState omni ) throws ExecutionException, InterruptedException
     {
-        return omni.o.executeAndQuery( new UpdateOperation() ).get();
+        return omni.o.executeAndQuery( new SlowUpdateOperation() ).get();
     }
 }
