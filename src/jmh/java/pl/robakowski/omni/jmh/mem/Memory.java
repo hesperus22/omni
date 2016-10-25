@@ -23,8 +23,11 @@ public class Memory
     @Benchmark
     public int test( TestState omni ) throws ExecutionException, InterruptedException
     {
-        Person person = omni.o.get( 0 );
-        person.setAge( person.getAge() + 1 );
-        return person.getAge();
+        synchronized( omni )
+        {
+            Person person = omni.o.get( 0 );
+            person.setAge( person.getAge() + 1 );
+            return person.getAge();
+        }
     }
 }

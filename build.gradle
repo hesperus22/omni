@@ -35,7 +35,7 @@ dependencies {
 }
 
 jmh {
-    include = ''
+    include = 'pl.robakowski.omni.jmh.mem.Memory'
     fork = 0
     iterations = 6
     timeOnIteration = '10s'
