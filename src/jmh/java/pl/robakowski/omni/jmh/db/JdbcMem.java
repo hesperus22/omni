@@ -13,44 +13,37 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.ExecutionException;
 
-public class JdbcMem
-{
-    @State( Scope.Thread )
-    public static class TestState
-    {
+public class JdbcMem {
+
+    @State(Scope.Thread)
+    public static class TestState {
         private Connection conn;
         public PreparedStatement stmt;
 
         @Setup
-        public void setup() throws ClassNotFoundException, SQLException
-        {
-            Class.forName( "org.h2.Driver" );
-            conn = DriverManager.getConnection( "jdbc:h2:mem:test" );
+        public void setup() throws ClassNotFoundException, SQLException {
+            Class.forName("org.h2.Driver");
+            conn = DriverManager.getConnection("jdbc:h2:mem:test");
             Statement statement = conn.createStatement();
 
-            try
-            {
-                statement.executeUpdate( "CREATE TABLE PERSON (age INTEGER)" );
-                statement.executeUpdate( "INSERT INTO PERSON VALUES (0)" );
-            }
-            catch( Exception e )
-            {
+            try {
+                statement.executeUpdate("CREATE TABLE PERSON (age INTEGER)");
+                statement.executeUpdate("INSERT INTO PERSON VALUES (0)");
+            } catch (Exception e) {
             }
 
-            stmt = conn.prepareStatement( "update Person set age = age + 1" );
+            stmt = conn.prepareStatement("update Person set age = age + 1");
         }
 
         @TearDown
-        public void tearDown() throws SQLException
-        {
+        public void tearDown() throws SQLException {
             stmt.close();
             conn.close();
         }
     }
 
     @Benchmark
-    public void test( TestState s ) throws ExecutionException, InterruptedException, SQLException
-    {
+    public void test(TestState s) throws ExecutionException, InterruptedException, SQLException {
         s.stmt.executeUpdate();
     }
 }

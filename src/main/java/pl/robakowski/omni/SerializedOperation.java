@@ -3,34 +3,28 @@ package pl.robakowski.omni;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Created by probakowski on 2016-10-19.
- */
-class SerializedOperation<T, E>
-{
-    private final CompletableFuture<E> future;
-    private final Instant clock;
+class SerializedOperation<T, E> {
+    private final CompletableFuture<Boolean> future = new CompletableFuture<>();
+    private final Instant clock = Instant.now();
     private final Operation<T, E> operation;
 
-    SerializedOperation( Operation<T, E> operation, Instant clock, CompletableFuture<E> future )
-    {
-        this.clock = clock;
+    SerializedOperation(Operation<T, E> operation) {
         this.operation = operation;
-        this.future = future;
     }
 
-    Instant getClock()
-    {
+    Instant getClock() {
         return clock;
     }
 
-    Operation<T, E> getOperation()
-    {
+    Operation<T, E> getOperation() {
         return operation;
     }
 
-    CompletableFuture<E> getFuture()
-    {
+    CompletableFuture<Boolean> getFuture() {
         return future;
+    }
+
+    E perform(T root) {
+        return operation.perform(root, clock);
     }
 }

@@ -8,13 +8,14 @@ buildscript {
     }
 }
 
-apply plugin: "me.champeau.gradle.jmh"
+apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'eu.appsatori.fatjar'
 
 group 'pl.robakowski'
 version '0.1.0-SNAPSHOT'
 
 apply plugin: 'java'
+apply plugin: 'osgi'
 apply plugin: 'maven'
 
 sourceCompatibility = 1.8
@@ -30,15 +31,14 @@ dependencies {
     jmh 'com.h2database:h2:1.4.192'
     jmh 'org.hibernate:hibernate-entitymanager:5.2.3.Final'
 
-
     testCompile 'junit:junit:4.12'
 }
 
 jmh {
-    include = 'pl.robakowski.omni.jmh.mem.Memory'
-    fork = 0
-    iterations = 6
-    timeOnIteration = '10s'
+    include = ''
+    fork = 1
+    iterations = 15
+    timeOnIteration = '3s'
     warmup = '1s'
     warmupIterations = 3
     warmupForks = 0

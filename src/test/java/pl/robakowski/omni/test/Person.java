@@ -2,42 +2,32 @@ package pl.robakowski.omni.test;
 
 import java.time.Instant;
 
-/**
- * Created by probakowski on 2016-10-19.
- */
-public class Person
-{
+public class Person {
     private String name;
     private Instant createdAt;
     private int age;
 
-    public String getName()
-    {
+    String getName() {
         return name;
     }
 
-    public void setName( String name )
-    {
+    void setName(String name) {
         this.name = name;
     }
 
-    public Instant getCreatedAt()
-    {
+    Instant getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt( Instant createdAt )
-    {
+    void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 
-    public int getAge()
-    {
+    int getAge() {
         return age;
     }
 
-    public void setAge( int age )
-    {
+    void setAge(int age) {
         this.age = age;
     }
 }
