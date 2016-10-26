@@ -5,7 +5,7 @@ import pl.robakowski.omni.Operation;
 import java.time.Instant;
 import java.util.List;
 
-public class UpdateOperation implements Operation<List<Person>, Integer> {
+public class Update implements Operation<List<Person>, Integer> {
     @Override
     public Integer perform(List<Person> root, Instant now) {
         Person person = root.get(0);

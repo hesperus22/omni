@@ -35,10 +35,11 @@ dependencies {
 }
 
 jmh {
-    include = ''
+    include = '.*Sum'
     fork = 1
-    iterations = 15
-    timeOnIteration = '3s'
+    jvmArgs = '-Xmx10G -Xms2G'
+    iterations = 5
+    timeOnIteration = '2s'
     warmup = '1s'
     warmupIterations = 3
     warmupForks = 0

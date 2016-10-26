@@ -16,6 +16,6 @@ public class OmniFast {
 
     @Benchmark
     public int test(TestState omni) throws ExecutionException, InterruptedException {
-        return omni.o.executeAndQuery(new UpdateOperation());
+        return omni.o.executeAndQuery(new Update());
     }
 }

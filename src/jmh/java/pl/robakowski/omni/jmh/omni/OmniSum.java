@@ -5,17 +5,20 @@ import pl.robakowski.omni.jmh.omni.data.*;
 
 import java.util.concurrent.ExecutionException;
 
-public class OmniSlow {
+/**
+ * Created by probakowski on 2016-10-26.
+ */
+public class OmniSum {
     @State(Scope.Benchmark)
     public static class TestState extends OmniState {
         @Override
         protected String getPath() {
-            return "build/o2";
+            return "build/o3";
         }
     }
 
     @Benchmark
     public int test(TestState omni) throws ExecutionException, InterruptedException {
-        return omni.o.executeAndQuery(new Update(), true);
+        return omni.o.executeAndQuery(new Update());
     }
 }

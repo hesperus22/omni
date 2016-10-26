@@ -14,7 +14,8 @@ public abstract class OmniState {
     protected abstract String getPath();
 
     protected void configureKryo(Kryo kryo) {
-        kryo.register(UpdateOperation.class);
+        kryo.register(Update.class);
+        kryo.register(AddAndSum.class);
     }
 
     protected Omni<List<Person>> getOmni() {
