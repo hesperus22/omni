@@ -35,7 +35,7 @@ dependencies {
 }
 
 jmh {
-    include = '.*OmniSum'
+    include = ''
     fork = 1
     jvmArgs = '-Xmx10G -Xms2G'
     iterations = 10

@@ -28,7 +28,7 @@ public class Omni<T> {
     Omni(Kryo kryo, File path, Supplier<T> instanceCreator) {
         this.kryo = kryo;
         dir = path;
-        snapshot = new File(dir, "snapshot.zip");
+        snapshot = new File(dir, "snapshot");
         root = snapshot.exists() ? loadSnapshot() : instanceCreator.get();
 
         loadOperations();

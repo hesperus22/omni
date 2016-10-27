@@ -67,7 +67,7 @@ public class OmniTest {
 
         omni.execute((root, now) -> root.setName(root.getName() + "person"));
 
-        Assert.assertTrue(new File(folder, "snapshot.zip").exists());
+        Assert.assertTrue(new File(folder, "snapshot").exists());
 
         omni = builder.build();
         String query = omni.query(Person::getName);
@@ -89,7 +89,7 @@ public class OmniTest {
 
         omni.execute((root, now) -> root.setName(root.getName() + "person"));
 
-        Assert.assertTrue(new File(folder, "snapshot.zip").exists());
+        Assert.assertTrue(new File(folder, "snapshot").exists());
 
         Stream.of(Optional.ofNullable(folder.listFiles()).orElse(new File[0]))
                 .filter(f -> f.getName().contains("1") | f.getName().contains("2")).forEach(File::delete);
