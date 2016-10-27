@@ -6,12 +6,11 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.File;
 import java.lang.invoke.SerializedLambda;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 public class OmniBuilder<T> {
     private Kryo kryo = new Kryo();
-    private File path;
+    private File path = new File("omni");
     private Supplier<T> instanceCreator;
 
     private OmniBuilder(Supplier<T> instanceCreator) {
