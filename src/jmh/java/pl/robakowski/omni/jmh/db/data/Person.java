@@ -1,6 +1,7 @@
 package pl.robakowski.omni.jmh.db.data;
 
 import javax.persistence.*;
+import java.util.*;
 
 @Table(name = "person")
 @Entity
@@ -12,6 +13,9 @@ public class Person {
 
     @Column(name = "age")
     private int age;
+
+    @OneToMany(mappedBy = "id")
+    private Set<Pet> pets = new HashSet<>();
 
     public long getId() {
         return id;
@@ -27,5 +31,9 @@ public class Person {
 
     public void setAge(int age) {
         this.age = age;
+    }
+
+    public Set<Pet> getPets() {
+        return pets;
     }
 }

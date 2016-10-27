@@ -1,12 +1,11 @@
 package pl.robakowski.omni.jmh.db;
 
 import org.openjdk.jmh.annotations.*;
-import pl.robakowski.omni.jmh.db.data.Person;
+import pl.robakowski.omni.jmh.db.data.*;
 
 import javax.persistence.*;
-import java.math.BigInteger;
 
-public class JpaSum {
+public class JpaJoinAdd {
 
     @State(Scope.Thread)
     public static class JpaState {
@@ -14,7 +13,7 @@ public class JpaSum {
 
         static {
             try {
-                entityManagerFactory = Persistence.createEntityManagerFactory("joinsum");
+                entityManagerFactory = Persistence.createEntityManagerFactory("joinadd");
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -22,13 +21,6 @@ public class JpaSum {
 
         public EntityManager em = entityManagerFactory.createEntityManager();
         public long id;
-
-        @Setup
-        public void setup() {
-            Person entity = new Person();
-            em.persist(entity);
-            id = entity.getId();
-        }
 
         @TearDown
         public synchronized void tearDown() {
@@ -44,13 +36,23 @@ public class JpaSum {
     }
 
     @Benchmark
-    public int test(JpaState state) {
+    public void test(JpaState state) {
         state.em.getTransaction().begin();
         Person person = new Person();
-        person.setAge(1);
+
+        for (int j = 0; j < 100; j++) {
+            Pet pet = new Pet();
+            pet.setName("a");
+            pet.setOwner(person);
+        }
+        if (Math.random() < 0.2) {
+            Pet pet = new Pet();
+            pet.setName("b");
+            pet.setOwner(person);
+        }
+
         state.em.persist(person);
         state.em.flush();
         state.em.getTransaction().commit();
-        return ((BigInteger) state.em.createNativeQuery("select sum(age) from person").getSingleResult()).intValue();
     }
 }

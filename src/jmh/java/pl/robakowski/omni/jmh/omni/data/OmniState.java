@@ -16,14 +16,15 @@ public abstract class OmniState {
     protected void configureKryo(Kryo kryo) {
         kryo.register(Update.class);
         kryo.register(AddAndSum.class);
+        kryo.register(AddWithPets.class);
     }
 
     protected Omni<List<Person>> getOmni() {
         return OmniBuilder.builder(this::getPeople).configureKryo(this::configureKryo).path(getPath()).build();
     }
 
-    private List<Person> getPeople() {
-        List<Person> list = new ArrayList<>();
+    protected List<Person> getPeople() {
+        List<Person> list = new LinkedList<>();
         list.add(new Person());
         return list;
     }

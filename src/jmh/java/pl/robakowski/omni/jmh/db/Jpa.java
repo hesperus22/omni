@@ -13,7 +13,7 @@ public class Jpa {
 
         static {
             try {
-                entityManagerFactory = Persistence.createEntityManagerFactory("persistence");
+                entityManagerFactory = Persistence.createEntityManagerFactory("jpa");
             } catch (Exception e) {
                 e.printStackTrace();
             }

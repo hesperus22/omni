@@ -35,11 +35,11 @@ dependencies {
 }
 
 jmh {
-    include = '.*Sum'
+    include = '.*OmniSum'
     fork = 1
     jvmArgs = '-Xmx10G -Xms2G'
-    iterations = 5
-    timeOnIteration = '2s'
+    iterations = 10
+    timeOnIteration = '5s'
     warmup = '1s'
     warmupIterations = 3
     warmupForks = 0
