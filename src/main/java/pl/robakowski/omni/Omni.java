@@ -12,13 +12,13 @@ import java.util.function.*;
 import java.util.stream.Stream;
 import java.util.zip.*;
 
-public class Omni<ROOT> {
+public class Omni<ROOT> implements Closeable {
     private final BlockingQueue<SerializedOperation<ROOT, ?>> queue = new ArrayBlockingQueue<>(10);
     private final StampedLock lock = new StampedLock();
     private final Kryo kryo;
     private final File dir;
     private final File snapshot;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(this::createThread);
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private FileOutputStream outputStream;
     private Output output;
 
@@ -34,12 +34,6 @@ public class Omni<ROOT> {
         lastCommandId++;
         startOutput();
         executor.scheduleAtFixedRate(this::sync, 0, 1, TimeUnit.SECONDS);
-    }
-
-    private Thread createThread(Runnable r) {
-        Thread thread = Executors.defaultThreadFactory().newThread(r);
-        thread.setDaemon(true);
-        return thread;
     }
 
     public void sync() {
@@ -163,14 +157,10 @@ public class Omni<ROOT> {
         }
     }
 
-    public void close() {
-        try {
-            sync();
-            executor.shutdownNow();
-            outputStream.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public void close() throws IOException {
+        sync();
+        executor.shutdownNow();
+        outputStream.close();
     }
 
     private Lock lock(boolean write) {
