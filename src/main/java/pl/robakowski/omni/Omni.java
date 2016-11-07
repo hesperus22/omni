@@ -4,41 +4,40 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.*;
 
 import java.io.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.function.*;
-import java.util.zip.*;
-import java.util.concurrent.locks.StampedLock;
-import java.util.stream.Stream;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.StampedLock;
+import java.util.function.*;
+import java.util.stream.Stream;
+import java.util.zip.*;
 
-
-public class Omni<T> {
-    private final BlockingQueue<SerializedOperation<T, ?>> queue = new ArrayBlockingQueue<>(10);
+public class Omni<ROOT> {
+    private final BlockingQueue<SerializedOperation<ROOT, ?>> queue = new ArrayBlockingQueue<>(10);
     private final StampedLock lock = new StampedLock();
     private final Kryo kryo;
     private final File dir;
     private final File snapshot;
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(this::createThread);
     private FileOutputStream outputStream;
     private Output output;
 
-    private T root;
+    private ROOT root;
     private volatile long lastCommandId = 0;
 
-    Omni(Kryo kryo, File path, Supplier<T> instanceCreator) {
+    Omni(Kryo kryo, File path, Supplier<ROOT> instanceCreator) {
         this.kryo = kryo;
         dir = path;
         snapshot = new File(dir, "snapshot");
         root = snapshot.exists() ? loadSnapshot() : instanceCreator.get();
-
         loadOperations();
         lastCommandId++;
         startOutput();
-        Executors.newSingleThreadScheduledExecutor(this::createThread).scheduleAtFixedRate(this::sync, 0, 1, TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(this::sync, 0, 1, TimeUnit.SECONDS);
     }
 
     private Thread createThread(Runnable r) {
-        Thread thread = new Thread(r);
+        Thread thread = Executors.defaultThreadFactory().newThread(r);
         thread.setDaemon(true);
         return thread;
     }
@@ -51,52 +50,44 @@ public class Omni<T> {
         }
     }
 
-    public <E> E query(Function<T, E> query) {
-        long stamp = lock.readLock();
-        try {
+    public <RESULT> RESULT query(Function<ROOT, RESULT> query) {
+        try (Lock $ = lock(false)) {
             return query.apply(root);
-        } finally {
-            lock.unlock(stamp);
         }
     }
 
-    public void execute(VoidOperation<T> operation) {
+    public void execute(VoidOperation<ROOT> operation) {
         execute(operation, false);
     }
 
-    public <E> E executeAndQuery(Operation<T, E> operation) {
+    public <RESULT> RESULT executeAndQuery(Operation<ROOT, RESULT> operation) {
         return executeAndQuery(operation, false);
     }
 
-    public void execute(VoidOperation<T> operation, boolean waitForWrite) {
+    public void execute(VoidOperation<ROOT> operation, boolean waitForWrite) {
         executeAndQuery(operation, waitForWrite);
     }
 
-    public <E> E executeAndQuery(Operation<T, E> operation, boolean waitForWrite) {
-        long stamp = lock.writeLock();
-        E result;
-        SerializedOperation<T, E> op;
+    public <RESULT> RESULT executeAndQuery(Operation<ROOT, RESULT> operation, boolean waitForWrite) {
         try {
-            op = new SerializedOperation<>(operation);
-            result = op.perform(root);
-            queue.put(op);
-        } catch (InterruptedException e) {
-            throw new IllegalStateException(e);
-        } finally {
-            lock.unlock(stamp);
-        }
+            RESULT result;
+            SerializedOperation<ROOT, RESULT> op;
+            try (Lock $ = lock(true)) {
+                op = new SerializedOperation<>(operation);
+                result = op.perform(root);
+                queue.put(op);
+            }
 
-        try {
             writeToFile();
 
             if (waitForWrite) {
                 op.getFuture().get();
             }
+
+            return result;
         } catch (InterruptedException | ExecutionException e) {
             throw new IllegalStateException(e);
         }
-
-        return result;
     }
 
     private void startOutput() {
@@ -109,26 +100,25 @@ public class Omni<T> {
     }
 
     private synchronized void writeToFile() {
-        SerializedOperation<T, ?> operation = queue.poll();
+        SerializedOperation<ROOT, ?> operation = queue.poll();
         kryo.writeObject(output, operation.getClock());
         kryo.writeClassAndObject(output, operation.getOperation());
         output.flush();
         operation.getFuture().complete(true);
     }
 
-    private T loadSnapshot() {
+    private ROOT loadSnapshot() {
         try (Input input = new Input(new GZIPInputStream(new FileInputStream(snapshot)))) {
             lastCommandId = input.readVarLong(true);
-            return (T) kryo.readClassAndObject(input);
+            return (ROOT) kryo.readClassAndObject(input);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
     }
 
     private void loadOperations() {
-        Stream.of(Optional.ofNullable(dir.listFiles()).orElse(new File[0]))
-                .filter(this::isOperation).filter(this::isAfterSnapshot).sorted(Comparator.comparing(this::getId))
-                .forEach(this::loadOperations);
+        Stream.of(dir.listFiles()).filter(this::isOperation).filter(this::isAfterSnapshot).sorted(Comparator
+                .comparing(this::getId)).forEach(this::loadOperations);
     }
 
     private void loadOperations(File f) {
@@ -136,9 +126,7 @@ public class Omni<T> {
             lastCommandId = getId(f);
             while (!input.eof()) {
                 Instant clock = kryo.readObject(input, Instant.class);
-                Operation operation = (Operation) kryo.readClassAndObject(input);
-
-                operation.perform(root, clock);
+                ((Operation) kryo.readClassAndObject(input)).perform(root, clock);
             }
         } catch (FileNotFoundException e) {
             throw new IllegalStateException(e);
@@ -158,24 +146,40 @@ public class Omni<T> {
     }
 
     public void takeSnapshot() {
-        File tmpSnapshot = new File(dir, "tmpSnapshot");
-
-        long stamp = lock.writeLock();
+        File tmp = new File(dir, "tmp");
         try {
-            try (Output output = new Output(new GZIPOutputStream(new FileOutputStream(tmpSnapshot)))) {
-                output.writeVarLong(lastCommandId, true);
-                kryo.writeClassAndObject(output, root);
+            try (Lock $ = lock(false); Output out = new Output(new GZIPOutputStream(new FileOutputStream(tmp)))) {
+                out.writeVarLong(lastCommandId, true);
+                kryo.writeClassAndObject(out, root);
                 lastCommandId++;
             }
 
-            if ((!snapshot.exists() || snapshot.delete()) && tmpSnapshot.renameTo(snapshot)) {
+            if ((!snapshot.exists() || snapshot.delete()) && tmp.renameTo(snapshot)) {
                 outputStream.close();
                 startOutput();
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);
-        } finally {
-            lock.unlock(stamp);
         }
+    }
+
+    public void close() {
+        try {
+            sync();
+            executor.shutdownNow();
+            outputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Lock lock(boolean write) {
+        long stamp = write ? lock.writeLock() : lock.readLock();
+        return () -> lock.unlock(stamp);
+    }
+
+    interface Lock extends AutoCloseable {
+        @Override
+        void close();
     }
 }

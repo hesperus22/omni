@@ -30,16 +30,18 @@ dependencies {
 
     jmh 'com.h2database:h2:1.4.192'
     jmh 'org.hibernate:hibernate-entitymanager:5.2.3.Final'
+    jmh 'commons-io:commons-io:2.5'
+
 
     testCompile 'junit:junit:4.12'
 }
 
 jmh {
-    include = ''
+    include = '.*JoinAdd'
     fork = 1
     jvmArgs = '-Xmx10G -Xms2G'
     iterations = 10
-    timeOnIteration = '5s'
+    timeOnIteration = '1s'
     warmup = '1s'
     warmupIterations = 3
     warmupForks = 0

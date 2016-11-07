@@ -3,11 +3,11 @@ package pl.robakowski.omni;
 import java.time.Instant;
 
 @FunctionalInterface
-public interface VoidOperation<E> extends Operation<E, Void> {
-    void run(E root, Instant now);
+public interface VoidOperation<ROOT> extends Operation<ROOT, Void> {
+    void run(ROOT root, Instant now);
 
     @Override
-    default Void perform(E root, Instant now) {
+    default Void perform(ROOT root, Instant now) {
         run(root, now);
         return null;
     }
